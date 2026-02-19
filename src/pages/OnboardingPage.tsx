@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@clerk/clerk-react";
 import { Position } from "@/types/models";
 import { portfolioService } from "@/services/portfolioService";
+import { stockPickerRunService } from "@/services/stockPickerRunService";
 import { RiskToleranceSlider } from "@/components/RiskToleranceSlider";
 import { ImportWizard } from "@/components/ImportWizard";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,6 +24,7 @@ const currencies = ["USD", "EUR", "GBP", "CAD", "AUD"];
 
 export function OnboardingPage() {
   const navigate = useNavigate();
+  const { getToken } = useAuth();
   const [step, setStep] = useState<"main" | "import">("main");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
@@ -49,12 +52,26 @@ export function OnboardingPage() {
 
     setIsLoading(true);
     try {
+      const token = await getToken();
+      if (!token) {
+        throw new Error("Unable to get Clerk session token");
+      }
+
       await portfolioService.createPortfolio(
         cash,
         monthly,
         riskTolerance,
         positions
       );
+
+      const runPayload = stockPickerRunService.buildPayload(
+        riskTolerance,
+        cash,
+        positions,
+        currency
+      );
+
+      await stockPickerRunService.runPortfolio(runPayload, token);
       navigate("/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create portfolio");
@@ -221,7 +238,7 @@ export function OnboardingPage() {
           disabled={isLoading || !cashAmount}
           className="flex-1 bg-blue-600 hover:bg-blue-700"
         >
-          {isLoading ? "Creating Portfolio..." : "Go to Dashboard"}
+          {isLoading ? "Running..." : "RUN"}
         </Button>
       </div>
     </div>
