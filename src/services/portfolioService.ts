@@ -1,12 +1,44 @@
-import { supabase } from "@/lib/supabase";
 import {
   Portfolio,
-  PositionDB,
   Position,
   PortfolioSnapshot,
 } from "@/types/models";
 
 const PORTFOLIO_SESSION_KEY = "stock-picker-portfolio-id";
+const PORTFOLIOS_STORAGE_KEY = "stock-picker-portfolios";
+const POSITIONS_STORAGE_KEY = "stock-picker-positions";
+
+type StoredPositions = Record<string, Position[]>;
+
+function readPortfolios(): Portfolio[] {
+  const raw = localStorage.getItem(PORTFOLIOS_STORAGE_KEY);
+  if (!raw) return [];
+
+  try {
+    return JSON.parse(raw) as Portfolio[];
+  } catch {
+    return [];
+  }
+}
+
+function writePortfolios(portfolios: Portfolio[]) {
+  localStorage.setItem(PORTFOLIOS_STORAGE_KEY, JSON.stringify(portfolios));
+}
+
+function readPositions(): StoredPositions {
+  const raw = localStorage.getItem(POSITIONS_STORAGE_KEY);
+  if (!raw) return {};
+
+  try {
+    return JSON.parse(raw) as StoredPositions;
+  } catch {
+    return {};
+  }
+}
+
+function writePositions(positions: StoredPositions) {
+  localStorage.setItem(POSITIONS_STORAGE_KEY, JSON.stringify(positions));
+}
 
 export const portfolioService = {
   setCurrentPortfolioId: (id: string) => {
@@ -23,62 +55,36 @@ export const portfolioService = {
     risk_tolerance: number,
     positions: Position[]
   ): Promise<Portfolio> {
-    const { data: portfolio, error: portfolioError } = await supabase
-      .from("portfolios")
-      .insert({
-        cash_amount,
-        monthly_contribution,
-        risk_tolerance,
-      })
-      .select()
-      .single();
+    const now = new Date().toISOString();
+    const portfolio: Portfolio = {
+      id: crypto.randomUUID(),
+      cash_amount,
+      monthly_contribution,
+      risk_tolerance,
+      created_at: now,
+      updated_at: now,
+    };
 
-    if (portfolioError) throw portfolioError;
+    const portfolios = readPortfolios();
+    portfolios.push(portfolio);
+    writePortfolios(portfolios);
 
-    if (positions.length > 0) {
-      const positionsData = positions.map((p) => ({
-        portfolio_id: portfolio.id,
-        ticker: p.ticker,
-        quantity: p.quantity,
-        avg_cost: p.avg_cost || null,
-      }));
-
-      const { error: positionsError } = await supabase
-        .from("positions")
-        .insert(positionsData);
-
-      if (positionsError) throw positionsError;
-    }
+    const allPositions = readPositions();
+    allPositions[portfolio.id] = positions;
+    writePositions(allPositions);
 
     this.setCurrentPortfolioId(portfolio.id);
     return portfolio;
   },
 
   async getPortfolio(id: string): Promise<Portfolio | null> {
-    const { data, error } = await supabase
-      .from("portfolios")
-      .select()
-      .eq("id", id)
-      .maybeSingle();
-
-    if (error) throw error;
-    return data;
+    const portfolios = readPortfolios();
+    return portfolios.find((portfolio) => portfolio.id === id) || null;
   },
 
   async getPositions(portfolioId: string): Promise<Position[]> {
-    const { data, error } = await supabase
-      .from("positions")
-      .select()
-      .eq("portfolio_id", portfolioId)
-      .order("created_at", { ascending: false });
-
-    if (error) throw error;
-
-    return data.map((p: PositionDB) => ({
-      ticker: p.ticker,
-      quantity: p.quantity,
-      avg_cost: p.avg_cost || undefined,
-    }));
+    const allPositions = readPositions();
+    return allPositions[portfolioId] || [];
   },
 
   async updatePortfolio(
@@ -90,57 +96,32 @@ export const portfolioService = {
       positions: Position[];
     }>
   ): Promise<Portfolio> {
-    const updateData: any = {};
+    const portfolios = readPortfolios();
+    const index = portfolios.findIndex((portfolio) => portfolio.id === id);
 
-    if (updates.cash_amount !== undefined) {
-      updateData.cash_amount = updates.cash_amount;
-    }
-    if (updates.monthly_contribution !== undefined) {
-      updateData.monthly_contribution = updates.monthly_contribution;
-    }
-    if (updates.risk_tolerance !== undefined) {
-      updateData.risk_tolerance = updates.risk_tolerance;
-    }
-    if (Object.keys(updateData).length > 0) {
-      updateData.updated_at = new Date().toISOString();
+    if (index < 0) {
+      throw new Error("Portfolio not found");
     }
 
-    if (Object.keys(updateData).length > 0) {
-      const { error } = await supabase
-        .from("portfolios")
-        .update(updateData)
-        .eq("id", id);
+    const current = portfolios[index];
+    const updatedPortfolio: Portfolio = {
+      ...current,
+      cash_amount: updates.cash_amount ?? current.cash_amount,
+      monthly_contribution: updates.monthly_contribution ?? current.monthly_contribution,
+      risk_tolerance: updates.risk_tolerance ?? current.risk_tolerance,
+      updated_at: new Date().toISOString(),
+    };
 
-      if (error) throw error;
-    }
+    portfolios[index] = updatedPortfolio;
+    writePortfolios(portfolios);
 
     if (updates.positions) {
-      await supabase.from("positions").delete().eq("portfolio_id", id);
-
-      if (updates.positions.length > 0) {
-        const positionsData = updates.positions.map((p) => ({
-          portfolio_id: id,
-          ticker: p.ticker,
-          quantity: p.quantity,
-          avg_cost: p.avg_cost || null,
-        }));
-
-        const { error } = await supabase
-          .from("positions")
-          .insert(positionsData);
-
-        if (error) throw error;
-      }
+      const allPositions = readPositions();
+      allPositions[id] = updates.positions;
+      writePositions(allPositions);
     }
 
-    const { data, error } = await supabase
-      .from("portfolios")
-      .select()
-      .eq("id", id)
-      .single();
-
-    if (error) throw error;
-    return data;
+    return updatedPortfolio;
   },
 
   async getPortfolioSnapshot(portfolioId: string): Promise<PortfolioSnapshot> {

@@ -4,6 +4,7 @@ import { EngineResult } from "@/types/models";
 import { portfolioService } from "@/services/portfolioService";
 import { mockEngineService } from "@/services/mockEngineService";
 import { historyService } from "@/services/historyService";
+import { stockPickerRunService } from "@/services/stockPickerRunService";
 import { StrategyBadge } from "@/components/StrategyBadge";
 import { ActionBadge } from "@/components/ActionBadge";
 import { ConfidenceGauge } from "@/components/ConfidenceGauge";
@@ -32,6 +33,12 @@ export function RecommendationPage() {
       const portfolioId = portfolioService.getCurrentPortfolioId();
       if (!portfolioId) {
         navigate("/dashboard");
+        return;
+      }
+
+      const lastRun = stockPickerRunService.getLastRun();
+      if (lastRun) {
+        setResult(stockPickerRunService.toEngineResult(lastRun));
         return;
       }
 

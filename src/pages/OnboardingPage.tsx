@@ -71,8 +71,9 @@ export function OnboardingPage() {
         currency
       );
 
-      await stockPickerRunService.runPortfolio(runPayload, token);
-      navigate("/dashboard");
+      const runResponse = await stockPickerRunService.runPortfolio(runPayload, token);
+      stockPickerRunService.saveLastRun(runResponse);
+      navigate("/recommendation");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create portfolio");
     } finally {
