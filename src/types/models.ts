@@ -40,6 +40,22 @@ export interface EngineResult {
   recession_probability?: number;
 }
 
+export interface StockPickerStrategyResult {
+  strategy: string;
+  request_id: string;
+  candidates_new_assets: string[];
+  shortlist: Record<string, unknown>[];
+  decision: string | null;
+  confidence: number | null;
+  allocation: Record<string, number> | null;
+  rule_trace: Record<string, unknown>[];
+}
+
+export interface StockPickerRunResponse {
+  run_id: string;
+  results: Record<string, StockPickerStrategyResult>;
+}
+
 export interface PortfolioSnapshot {
   cash_amount: number;
   monthly_contribution?: number;
@@ -53,16 +69,6 @@ export interface Portfolio {
   cash_amount: number;
   monthly_contribution: number;
   risk_tolerance: number;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface PositionDB {
-  id: string;
-  portfolio_id: string;
-  ticker: string;
-  quantity: number;
-  avg_cost?: number;
   created_at: string;
   updated_at: string;
 }
