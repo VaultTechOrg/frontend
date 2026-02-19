@@ -10,8 +10,7 @@ import {
   AllocationBreakdown,
 } from "@/types/models";
 
-const STOCK_PICKER_PROXY_BASE_URL =
-  import.meta.env.VITE_STOCK_PICKER_PROXY_URL || "/api/proxy";
+const STOCK_PICKER_PROXY_BASE_URL = "http://internet-facing-863698164.eu-north-1.elb.amazonaws.com/api/stock-picker/run";
 
 function resolveRunUrl(baseOrUrl: string): string {
   if (baseOrUrl.endsWith("/stock-picker/run")) {
