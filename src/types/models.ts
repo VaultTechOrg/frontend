@@ -44,11 +44,20 @@ export interface StockPickerStrategyResult {
   strategy: string;
   request_id: string;
   candidates_new_assets: string[];
-  shortlist: Record<string, unknown>[];
+  shortlist: ShortlistBucket[];
   decision: string | null;
   confidence: number | null;
   allocation: Record<string, number> | null;
   rule_trace: Record<string, unknown>[];
+}
+
+export interface ShortlistBucket {
+  suggested_stocks: SuggestedStock[];
+}
+
+export interface SuggestedStock {
+  ticker: string;
+  allocation: number;
 }
 
 export interface StockPickerRunResponse {
