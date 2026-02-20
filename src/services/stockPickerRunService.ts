@@ -10,17 +10,8 @@ import {
   AllocationBreakdown,
 } from "@/types/models";
 
-const STOCK_PICKER_PROXY_BASE_URL = "http://internet-facing-863698164.eu-north-1.elb.amazonaws.com/api/stock-picker/run";
-
-function resolveRunUrl(baseOrUrl: string): string {
-  if (baseOrUrl.endsWith("/stock-picker/run")) {
-    return baseOrUrl;
-  }
-
-  return `${baseOrUrl.replace(/\/$/, "")}/stock-picker/run`;
-}
-
-const STOCK_PICKER_RUN_URL = resolveRunUrl(STOCK_PICKER_PROXY_BASE_URL);
+const STOCK_PICKER_RUN_URL =
+  import.meta.env.VITE_STOCK_PICKER_RUN_URL || "/api/proxy/stock-picker/run";
 
 export const LAST_STOCK_PICKER_RUN_KEY = "stock-picker-last-run-response";
 
@@ -44,11 +35,12 @@ function mapStrategy(value: string): Strategy {
   return "HOLD";
 }
 
-function mapAction(value: string | null): Action {
+function mapAction(value: string | null, hasShortlist: boolean): Action {
   const normalized = (value || "").toLowerCase();
   if (normalized === "invest_now") return "INVEST_NOW";
   if (normalized === "partial_deploy") return "PARTIAL_DEPLOY";
   if (normalized === "rebalance") return "REBALANCE";
+  if (hasShortlist && normalized.length > 0) return "INVEST_NOW";
   return "WAIT";
 }
 
@@ -85,6 +77,23 @@ function firstResult(results: Record<string, StockPickerStrategyResult>): StockP
     throw new Error("Stock picker response did not include any strategy result");
   }
   return entries[0];
+}
+
+function resolveAllocation(strategyResult: StockPickerStrategyResult): AllocationBreakdown {
+  if (strategyResult.allocation) {
+    return mapAllocation(strategyResult.allocation);
+  }
+
+  const recommendedWeight = strategyResult.shortlist
+    .flatMap((bucket) => bucket.suggested_stocks)
+    .reduce((sum, stock) => sum + Number(stock.allocation || 0), 0);
+
+  const cappedWeight = Math.min(Math.max(recommendedWeight, 0), 1);
+  return {
+    equities: cappedWeight,
+    defensive: 0,
+    cash: 1 - cappedWeight,
+  };
 }
 
 export const stockPickerRunService = {
@@ -137,15 +146,16 @@ export const stockPickerRunService = {
 
   toEngineResult(response: StockPickerRunResponse): EngineResult {
     const strategyResult = firstResult(response.results);
+    const hasShortlist = strategyResult.shortlist.some((bucket) => bucket.suggested_stocks.length > 0);
 
     return {
       strategy: mapStrategy(strategyResult.strategy),
-      action: mapAction(strategyResult.decision),
+      action: mapAction(strategyResult.decision, hasShortlist),
       amount: 0,
-      allocation: mapAllocation(strategyResult.allocation),
+      allocation: resolveAllocation(strategyResult),
       confidence: Number(strategyResult.confidence ?? 0),
       invalidated_if: mapInvalidationConditions(),
-      explanation_summary: `Strategy request ${strategyResult.request_id} completed with ${strategyResult.shortlist.length} shortlisted assets.`,
+      explanation_summary: `Strategy request ${strategyResult.request_id} completed with ${strategyResult.shortlist.length} shortlisted baskets and ${strategyResult.candidates_new_assets.length} candidate assets.`,
       triggered_rules: mapRuleTrace(strategyResult.rule_trace),
     };
   },
