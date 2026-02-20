@@ -10,17 +10,8 @@ import {
   AllocationBreakdown,
 } from "@/types/models";
 
-const STOCK_PICKER_PROXY_BASE_URL = "http://internet-facing-863698164.eu-north-1.elb.amazonaws.com/api/stock-picker/run";
-
-function resolveRunUrl(baseOrUrl: string): string {
-  if (baseOrUrl.endsWith("/stock-picker/run")) {
-    return baseOrUrl;
-  }
-
-  return `${baseOrUrl.replace(/\/$/, "")}/stock-picker/run`;
-}
-
-const STOCK_PICKER_RUN_URL = resolveRunUrl(STOCK_PICKER_PROXY_BASE_URL);
+const STOCK_PICKER_RUN_URL =
+  import.meta.env.VITE_STOCK_PICKER_RUN_URL || "/api/proxy/stock-picker/run";
 
 export const LAST_STOCK_PICKER_RUN_KEY = "stock-picker-last-run-response";
 
