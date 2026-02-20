@@ -1,8 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
-const UPSTREAM_URL =
-  process.env.STOCK_PICKER_UPSTREAM_URL ||
-  "http://internet-facing-863698164.eu-north-1.elb.amazonaws.com/api/stock-picker/run";
+const UPSTREAM_URL = "http://internet-facing-863698164.eu-north-1.elb.amazonaws.com/api/stock-picker/run";
 
 const HOP_BY_HOP_HEADERS = new Set([
   "connection",
